@@ -1,0 +1,78 @@
+; Определение хранилищ для разных этапов
+DOC_UPLOAD_STORAGE       STORAGE 5
+SCENARIO_GEN_STORAGE     STORAGE 5
+DATA_FILLING_STORAGE     STORAGE 5
+TEST_EXECUTION_STORAGE   STORAGE 5
+REVIEW_STORAGE           STORAGE 5
+REPORT_GEN_STORAGE       STORAGE 5
+
+; Поступление задач в систему
+GENERATE 60,0
+
+; Разветвление: часть (40%) идёт сначала к загрузке документации, остальные (60%) сразу к генерации сценариев
+TRANSFER .4,INTERMEDIATE_TRANSFER_BLOCK,TO_SCENARIO_GEN
+
+; Дополнительная логика: половина транзактов возвращается к загрузке, половина — на заполнение данными
+INTERMEDIATE_TRANSFER_BLOCK TRANSFER 0.5,TO_DOC_UPLOAD,TO_DATA_FILLING
+
+; Загрузка документации
+TO_DOC_UPLOAD QUEUE DOC_UPLOAD_Q
+    ENTER DOC_UPLOAD_STORAGE
+    DEPART DOC_UPLOAD_Q
+    ADVANCE 40,20
+    LEAVE DOC_UPLOAD_STORAGE
+    TRANSFER ,TO_SCENARIO_GEN
+
+; Заполнение тестовыми данными
+TO_DATA_FILLING QUEUE DATA_FILLING_Q
+    ENTER DATA_FILLING_STORAGE
+    DEPART DATA_FILLING_Q
+    ADVANCE 90,30
+    LEAVE DATA_FILLING_STORAGE
+    ; Вероятность 50% вернуться к загрузке, иначе — к тестам
+    TRANSFER .5,TO_DOC_UPLOAD,TO_TEST_EXECUTION
+
+; Генерация сценариев
+TO_SCENARIO_GEN QUEUE SCENARIO_GEN_Q
+    ENTER SCENARIO_GEN_STORAGE
+    DEPART SCENARIO_GEN_Q
+    ADVANCE 60,30
+    LEAVE SCENARIO_GEN_STORAGE
+    ; Вероятность 10% перейти к промежуточному блоку, иначе — сразу к заполнению данными
+    TRANSFER 0.1,INTERMEDIATE_TRANSFER_BLOCK_TWO,TO_DATA_FILLING
+
+; Промежуточный переход для проверки сценариев
+INTERMEDIATE_TRANSFER_BLOCK_TWO TRANSFER 0.7,TO_REVIEW,TO_DATA_FILLING
+
+; Проверка сценариев
+TO_REVIEW QUEUE REVIEW_Q
+    ENTER REVIEW_STORAGE
+    DEPART REVIEW_Q
+    ADVANCE 120,60
+    LEAVE REVIEW_STORAGE
+    TRANSFER ,TO_DATA_FILLING
+
+; Выполнение тестов
+TO_TEST_EXECUTION QUEUE TEST_EXECUTION_Q
+    ENTER TEST_EXECUTION_STORAGE
+    DEPART TEST_EXECUTION_Q
+    ADVANCE 300,60
+    LEAVE TEST_EXECUTION_STORAGE
+    TRANSFER ,TO_REPORT_GENERATION
+
+; Формирование отчёта
+TO_REPORT_GENERATION QUEUE REPORT_GEN_Q
+    ENTER REPORT_GEN_STORAGE
+    DEPART REPORT_GEN_Q
+    ADVANCE 45,15
+    LEAVE REPORT_GEN_STORAGE
+    TRANSFER ,TO_COMPLETE
+
+; Завершение обработки транзакта
+TO_COMPLETE TERMINATE
+
+; Остановка моделирования после 43200 секунд
+GENERATE 43200
+TERMINATE 1
+
+START 1
